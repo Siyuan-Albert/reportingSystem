@@ -1,0 +1,39 @@
+# Created at 2021-03-11T20:26:33.430
+WARNING: An illegal reflective access operation has occurred
+
+# Created at 2021-03-11T20:26:33.431
+WARNING: Illegal reflective access by org.codehaus.groovy.reflection.CachedClass (file:/Users/liusiyuan/.m2/repository/org/codehaus/groovy/groovy/2.5.14/groovy-2.5.14.jar) to method java.lang.Object.finalize()
+
+# Created at 2021-03-11T20:26:33.431
+WARNING: Please consider reporting this to the maintainers of org.codehaus.groovy.reflection.CachedClass
+
+# Created at 2021-03-11T20:26:33.431
+WARNING: Use --illegal-access=warn to enable warnings of further illegal reflective access operations
+
+# Created at 2021-03-11T20:26:33.431
+WARNING: All illegal access operations will be denied in a future release
+
+# Created at 2021-03-11T20:26:44.291
+2021-03-11 20:26:44.291 java[8147:1020739] CoreText note: Client requested name ".SFNS-Regular", it will get Times-Roman rather than the intended font. All system UI font access should be through proper APIs such as CTFontCreateUIFontForLanguage() or +[NSFont systemFontOfSize:].
+
+# Created at 2021-03-11T20:26:44.292
+2021-03-11 20:26:44.291 java[8147:1020739] CoreText note: Set a breakpoint on CTFontLogSystemFontNameRequest to debug.
+
+# Created at 2021-03-11T20:26:44.293
+2021-03-11 20:26:44.293 java[8147:1020739] CoreText note: Client requested name ".SFNS-Bold", it will get Times-Roman rather than the intended font. All system UI font access should be through proper APIs such as CTFontCreateUIFontForLanguage() or +[NSFont systemFontOfSize:].
+
+# Created at 2021-03-11T20:26:44.293
+2021-03-11 20:26:44.293 java[8147:1020739] CoreText note: Client requested name ".SFNSMono-Regular", it will get Times-Roman rather than the intended font. All system UI font access should be through proper APIs such as CTFontCreateUIFontForLanguage() or +[NSFont systemFontOfSize:].
+
+# Created at 2021-03-11T20:26:44.297
+2021-03-11 20:26:44.297 java[8147:1020739] CoreText note: Client requested name ".SFNSMono-Regular", it will get Times-Roman rather than the intended font. All system UI font access should be through proper APIs such as CTFontCreateUIFontForLanguage() or +[NSFont systemFontOfSize:].
+
+# Created at 2021-03-11T20:26:44.298
+2021-03-11 20:26:44.297 java[8147:1020739] CoreText note: Client requested name ".SFNSMono-Regular", it will get Times-Roman rather than the intended font. All system UI font access should be through proper APIs such as CTFontCreateUIFontForLanguage() or +[NSFont systemFontOfSize:].
+
+# Created at 2021-03-11T20:26:44.298
+2021-03-11 20:26:44.298 java[8147:1020739] CoreText note: Client requested name ".SFNS-Regular", it will get Times-Roman rather than the intended font. All system UI font access should be through proper APIs such as CTFontCreateUIFontForLanguage() or +[NSFont systemFontOfSize:].
+
+# Created at 2021-03-11T20:26:44.298
+2021-03-11 20:26:44.298 java[8147:1020739] CoreText note: Client requested name ".SFNS-Bold", it will get Times-Roman rather than the intended font. All system UI font access should be through proper APIs such as CTFontCreateUIFontForLanguage() or +[NSFont systemFontOfSize:].
+

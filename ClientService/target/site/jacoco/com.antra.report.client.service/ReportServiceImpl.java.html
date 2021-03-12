@@ -1,0 +1,272 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReportServiceImpl.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ClientService</a> &gt; <a href="index.source.html" class="el_package">com.antra.report.client.service</a> &gt; <span class="el_source">ReportServiceImpl.java</span></div><h1>ReportServiceImpl.java</h1><pre class="source lang-java linenums">package com.antra.report.client.service;
+
+import com.amazonaws.services.s3.AmazonS3;
+import com.antra.report.client.cache.ReportCache;
+import com.antra.report.client.entity.ExcelReportEntity;
+import com.antra.report.client.entity.PDFReportEntity;
+import com.antra.report.client.entity.ReportRequestEntity;
+import com.antra.report.client.entity.ReportStatus;
+import com.antra.report.client.exception.RequestNotFoundException;
+import com.antra.report.client.pojo.EmailType;
+import com.antra.report.client.pojo.FileType;
+import com.antra.report.client.pojo.reponse.ExcelResponse;
+import com.antra.report.client.pojo.reponse.PDFResponse;
+import com.antra.report.client.pojo.reponse.ReportVO;
+import com.antra.report.client.pojo.reponse.SqsResponse;
+import com.antra.report.client.pojo.request.ReportRequest;
+import com.antra.report.client.repository.ReportRequestRepo;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
+import org.springframework.http.HttpMethod;
+import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
+/**
+ * @author liusiyuan
+ */
+@Service
+public class ReportServiceImpl implements ReportService {
+<span class="fc" id="L42">    private static final Logger log = LoggerFactory.getLogger(ReportServiceImpl.class);</span>
+
+
+
+
+    private final ReportRequestRepo reportRequestRepo;
+    private final SNSService snsService;
+    private final AmazonS3 s3Client;
+    private final EmailService emailService;
+    private final ReportCache reportCache;
+
+<span class="fc" id="L53">    public ReportServiceImpl(ReportRequestRepo reportRequestRepo, SNSService snsService, AmazonS3 s3Client, EmailService emailService, ReportCache reportCache) {</span>
+<span class="fc" id="L54">        this.reportRequestRepo = reportRequestRepo;</span>
+<span class="fc" id="L55">        this.snsService = snsService;</span>
+<span class="fc" id="L56">        this.s3Client = s3Client;</span>
+<span class="fc" id="L57">        this.emailService = emailService;</span>
+<span class="fc" id="L58">        this.reportCache = reportCache;</span>
+<span class="fc" id="L59">    }</span>
+
+    private ReportRequestEntity persistToLocal(ReportRequest request) {
+<span class="fc" id="L62">        request.setReqId(&quot;Req-&quot;+ UUID.randomUUID().toString());</span>
+
+<span class="fc" id="L64">        ReportRequestEntity entity = new ReportRequestEntity();</span>
+<span class="fc" id="L65">        entity.setReqId(request.getReqId());</span>
+<span class="fc" id="L66">        entity.setSubmitter(request.getSubmitter());</span>
+<span class="fc" id="L67">        entity.setDescription(request.getDescription());</span>
+<span class="fc" id="L68">        entity.setCreatedTime(LocalDateTime.now());</span>
+
+<span class="fc" id="L70">        PDFReportEntity pdfReport = new PDFReportEntity();</span>
+<span class="fc" id="L71">        pdfReport.setRequest(entity);</span>
+<span class="fc" id="L72">        pdfReport.setStatus(ReportStatus.PENDING);</span>
+<span class="fc" id="L73">        pdfReport.setCreatedTime(LocalDateTime.now());</span>
+<span class="fc" id="L74">        entity.setPdfReport(pdfReport);</span>
+
+<span class="fc" id="L76">        ExcelReportEntity excelReport = new ExcelReportEntity();</span>
+<span class="fc" id="L77">        BeanUtils.copyProperties(pdfReport, excelReport);</span>
+<span class="fc" id="L78">        entity.setExcelReport(excelReport);</span>
+
+<span class="fc" id="L80">        return reportRequestRepo.save(entity);</span>
+    }
+
+    @Override
+    public ReportVO generateReportsSync(ReportRequest request) {
+<span class="fc" id="L85">        persistToLocal(request);</span>
+<span class="fc" id="L86">        sendDirectRequests(request);</span>
+<span class="fc" id="L87">        return new ReportVO(reportRequestRepo.findById(request.getReqId()).orElseThrow());</span>
+    }
+
+//    //@Transactional
+    private void sendDirectRequests(ReportRequest request){
+
+<span class="fc" id="L93">        ExcelResponse excelResponse = new ExcelResponse();</span>
+<span class="fc" id="L94">        PDFResponse pdfResponse = new PDFResponse();</span>
+
+        try{
+<span class="fc" id="L97">            excelResponse = reportCache.generateExcel(request);</span>
+<span class="nc" id="L98">        } catch (Exception e) {</span>
+<span class="nc" id="L99">            log.error(&quot;Excel Generation Error (Sync) : e&quot;, e);</span>
+<span class="nc" id="L100">            excelResponse.setReqId(request.getReqId());</span>
+<span class="nc" id="L101">            excelResponse.setFailed(true);</span>
+        } finally {
+<span class="fc" id="L103">            updateLocal(excelResponse);</span>
+        }
+        try {
+<span class="fc" id="L106">            pdfResponse = reportCache.generatePdf(request);</span>
+<span class="nc" id="L107">        } catch(Exception e){</span>
+<span class="nc" id="L108">            log.error(&quot;PDF Generation Error (Sync) : e&quot;, e);</span>
+<span class="nc" id="L109">            pdfResponse.setReqId(request.getReqId());</span>
+<span class="nc" id="L110">            pdfResponse.setFailed(true);</span>
+        } finally {
+<span class="fc" id="L112">            updateLocal(pdfResponse);</span>
+        }
+<span class="fc" id="L114">    }</span>
+//    //@Transactional
+//    private void sendDirectRequests(ReportRequest request){
+//        RestTemplate rs = new RestTemplate();
+//        ExcelResponse excelResponse = new ExcelResponse();
+//        PDFResponse pdfResponse = new PDFResponse();
+//        CompletableFuture&lt;ExcelResponse&gt; futureExcelResponse =
+//                CompletableFuture.supplyAsync(()-&gt;rs.postForEntity(&quot;http://localhost:8888/excel&quot;, request, ExcelResponse.class).getBody(), es);
+//        CompletableFuture&lt;PDFResponse&gt; futurePdfResponse =
+//                CompletableFuture.supplyAsync(()-&gt;rs.postForEntity(&quot;http://localhost:9999/pdf&quot;, request, PDFResponse.class).getBody(), es);
+//        try{
+//            excelResponse = futureExcelResponse.get();
+//        } catch (Exception e) {
+//            log.error(&quot;Excel Generation Error (Sync) : e&quot;, e);
+//            excelResponse.setReqId(request.getReqId());
+//            excelResponse.setFailed(true);
+//        } finally {
+//            updateLocal(excelResponse);
+//        }
+//        try {
+//            pdfResponse = futurePdfResponse.get();
+//        } catch(Exception e){
+//            log.error(&quot;PDF Generation Error (Sync) : e&quot;, e);
+//            pdfResponse.setReqId(request.getReqId());
+//            pdfResponse.setFailed(true);
+//        } finally {
+//            updateLocal(pdfResponse);
+//        }
+//    }
+    /*
+    //TODO:Change to parallel process using Threadpool? CompletableFuture?
+    private void sendDirectRequests(ReportRequest request) {
+        RestTemplate rs = new RestTemplate();
+        ExcelResponse excelResponse = new ExcelResponse();
+        PDFResponse pdfResponse = new PDFResponse();
+        try {
+            excelResponse = rs.postForEntity(&quot;http://localhost:8888/excel&quot;, request, ExcelResponse.class).getBody();
+        } catch(Exception e){
+            log.error(&quot;Excel Generation Error (Sync) : e&quot;, e);
+            excelResponse.setReqId(request.getReqId());
+            excelResponse.setFailed(true);
+        } finally {
+            updateLocal(excelResponse);
+        }
+        try {
+            pdfResponse = rs.postForEntity(&quot;http://localhost:9999/pdf&quot;, request, PDFResponse.class).getBody();
+        } catch(Exception e){
+            log.error(&quot;PDF Generation Error (Sync) : e&quot;, e);
+            pdfResponse.setReqId(request.getReqId());
+            pdfResponse.setFailed(true);
+        } finally {
+            updateLocal(pdfResponse);
+        }
+    }
+
+*/
+
+    private void updateLocal(ExcelResponse excelResponse) {
+<span class="fc" id="L172">        SqsResponse response = new SqsResponse();</span>
+<span class="fc" id="L173">        BeanUtils.copyProperties(excelResponse, response);</span>
+<span class="fc" id="L174">        updateAsyncExcelReport(response);</span>
+<span class="fc" id="L175">    }</span>
+    private void updateLocal(PDFResponse pdfResponse) {
+<span class="fc" id="L177">        SqsResponse response = new SqsResponse();</span>
+<span class="fc" id="L178">        BeanUtils.copyProperties(pdfResponse, response);</span>
+<span class="fc" id="L179">        updateAsyncPDFReport(response);</span>
+<span class="fc" id="L180">    }</span>
+
+    @Override
+    @Transactional
+    public ReportVO generateReportsAsync(ReportRequest request) {
+<span class="nc" id="L185">        ReportRequestEntity entity = persistToLocal(request);</span>
+<span class="nc" id="L186">        snsService.sendReportNotification(request);</span>
+<span class="nc" id="L187">        log.info(&quot;Send SNS the message: {}&quot;,request);</span>
+<span class="nc" id="L188">        return new ReportVO(entity);</span>
+    }
+
+    @Override
+//    @Transactional // why this? email could fail
+    public void updateAsyncPDFReport(SqsResponse response) {
+<span class="fc" id="L194">        ReportRequestEntity entity = reportRequestRepo.findById(response.getReqId()).orElseThrow(RequestNotFoundException::new);</span>
+<span class="fc" id="L195">        var pdfReport = entity.getPdfReport();</span>
+<span class="fc" id="L196">        pdfReport.setUpdatedTime(LocalDateTime.now());</span>
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">        if (response.isFailed()) {</span>
+<span class="nc" id="L198">            pdfReport.setStatus(ReportStatus.FAILED);</span>
+        } else{
+<span class="fc" id="L200">            pdfReport.setStatus(ReportStatus.COMPLETED);</span>
+<span class="fc" id="L201">            pdfReport.setFileId(response.getFileId());</span>
+<span class="fc" id="L202">            pdfReport.setFileLocation(response.getFileLocation());</span>
+<span class="fc" id="L203">            pdfReport.setFileSize(response.getFileSize());</span>
+        }
+<span class="fc" id="L205">        entity.setUpdatedTime(LocalDateTime.now());</span>
+<span class="fc" id="L206">        reportRequestRepo.save(entity);</span>
+<span class="fc" id="L207">        String to = &quot;lius5@mail.uc.edu&quot;;</span>
+<span class="fc" id="L208">        emailService.sendEmail(to, EmailType.SUCCESS, entity.getSubmitter());</span>
+<span class="fc" id="L209">    }</span>
+
+    @Override
+//    @Transactional
+    public void updateAsyncExcelReport(SqsResponse response) {
+<span class="fc" id="L214">        ReportRequestEntity entity = reportRequestRepo.findById(response.getReqId()).orElseThrow(RequestNotFoundException::new);</span>
+<span class="fc" id="L215">        var excelReport = entity.getExcelReport();</span>
+<span class="fc" id="L216">        excelReport.setUpdatedTime(LocalDateTime.now());</span>
+<span class="pc bpc" id="L217" title="1 of 2 branches missed.">        if (response.isFailed()) {</span>
+<span class="nc" id="L218">            excelReport.setStatus(ReportStatus.FAILED);</span>
+        } else{
+<span class="fc" id="L220">            excelReport.setStatus(ReportStatus.COMPLETED);</span>
+<span class="fc" id="L221">            excelReport.setFileId(response.getFileId());</span>
+<span class="fc" id="L222">            excelReport.setFileLocation(response.getFileLocation());</span>
+<span class="fc" id="L223">            excelReport.setFileSize(response.getFileSize());</span>
+        }
+<span class="fc" id="L225">        entity.setUpdatedTime(LocalDateTime.now());</span>
+<span class="fc" id="L226">        reportRequestRepo.save(entity);</span>
+<span class="fc" id="L227">        String to = &quot;lius5@mail.uc.edu&quot;;</span>
+<span class="fc" id="L228">        emailService.sendEmail(to, EmailType.SUCCESS, entity.getSubmitter());</span>
+<span class="fc" id="L229">    }</span>
+
+    @Override
+    @Transactional(readOnly = true)
+    public List&lt;ReportVO&gt; getReportList() {
+<span class="nc" id="L234">        return reportRequestRepo.findAll().stream().map(ReportVO::new).collect(Collectors.toList());</span>
+    }
+
+    @Override
+    public InputStream getFileBodyByReqId(String reqId, FileType type) {
+<span class="nc" id="L239">        log.info(&quot;hahahahahha: id&quot; + reqId);</span>
+<span class="nc" id="L240">        ReportRequestEntity entity = reportRequestRepo.findById(reqId).orElseThrow(RequestNotFoundException::new);</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">        if (type == FileType.PDF) {</span>
+<span class="nc" id="L242">            String fileLocation = entity.getPdfReport().getFileLocation(); // this location is s3 &quot;bucket/key&quot;</span>
+<span class="nc" id="L243">            String bucket = fileLocation.split(&quot;/&quot;)[0];</span>
+<span class="nc" id="L244">            String key = fileLocation.split(&quot;/&quot;)[1];</span>
+<span class="nc" id="L245">            return s3Client.getObject(bucket, key).getObjectContent();</span>
+<span class="nc bnc" id="L246" title="All 2 branches missed.">        } else if (type == FileType.EXCEL) {</span>
+<span class="nc" id="L247">            String fileId = entity.getExcelReport().getFileId();</span>
+//            String fileLocation = entity.getExcelReport().getFileLocation();
+//            try {
+//                return new FileInputStream(fileLocation);// this location is in local, definitely sucks
+//            } catch (FileNotFoundException e) {
+//                log.error(&quot;No file found&quot;, e);
+//            }
+<span class="nc" id="L254">            RestTemplate restTemplate = new RestTemplate();</span>
+//            InputStream is = restTemplate.execute(, HttpMethod.GET, null, ClientHttpResponse::getBody, fileId);
+<span class="nc" id="L256">            ResponseEntity&lt;Resource&gt; exchange = restTemplate.exchange(&quot;http://localhost:8888/excel/{id}/content&quot;,</span>
+                    HttpMethod.GET, null, Resource.class, fileId);
+            try {
+<span class="nc" id="L259">                return exchange.getBody().getInputStream();</span>
+<span class="nc" id="L260">            } catch (IOException e) {</span>
+<span class="nc" id="L261">                log.error(&quot;Cannot download excel&quot;,e);</span>
+            }
+        }
+<span class="nc" id="L264">        return null;</span>
+    }
+
+    @Override
+    public void deleteFileByReqId(String reqId) {
+<span class="nc" id="L269">        reportRequestRepo.deleteById(reqId);</span>
+<span class="nc" id="L270">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.4.201905082037</span></div></body></html>
