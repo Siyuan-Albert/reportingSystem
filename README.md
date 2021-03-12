@@ -1,8 +1,8 @@
 My improvements for reporting project:
 
-Added a new feature that user can delete the report
-Added a login page
-Improved sync API performance:
+1. Added a new feature that user can delete the report
+2. Added a login page
+3. Improved sync API performance:
 Using mutithreading and sending request concurrently to both services.
 Added a cache to avoid repeated generation. Once the report has been generated, you will get it from the cache.
 Changed MongoDB to DynamoDB(PDF service)
