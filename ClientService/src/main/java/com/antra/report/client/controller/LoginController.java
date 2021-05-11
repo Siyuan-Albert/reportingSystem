@@ -2,10 +2,12 @@ package com.antra.report.client.controller;
 
 import com.antra.report.client.entity.UserEntity;
 import com.antra.report.client.pojo.LoginVO;
+import com.antra.report.client.pojo.reponse.GeneralResponse;
 import com.antra.report.client.service.UserService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -20,21 +22,24 @@ import javax.validation.Valid;
  */
 
 @RestController
-@RequestMapping("/login")
 public class LoginController {
     private static final Logger log = LoggerFactory.getLogger(LoginController.class);
 
     @Autowired
     UserService userService;
 
-    @PostMapping(value = "/do_login")
-    public int dologin( @RequestBody @Validated LoginVO loginVo) {
+    @PostMapping(value = "/login")
+    public ResponseEntity<GeneralResponse> dologin(@RequestBody @Validated LoginVO loginVo) {
         log.info(loginVo.toString());
         UserEntity userEntity = userService.checkPassword(loginVo);
 
         if(userEntity!=null){
-            return 1;
+            log.info("You have been login");
+            return ResponseEntity.ok(new GeneralResponse(1));
+        }else{
+            log.info("The password or mobile is wrong");
+            return ResponseEntity.ok(new GeneralResponse(0));
         }
-        return 0;
+
     }
 }

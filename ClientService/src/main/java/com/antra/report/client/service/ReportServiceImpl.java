@@ -2,10 +2,7 @@ package com.antra.report.client.service;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.antra.report.client.cache.ReportCache;
-import com.antra.report.client.entity.ExcelReportEntity;
-import com.antra.report.client.entity.PDFReportEntity;
-import com.antra.report.client.entity.ReportRequestEntity;
-import com.antra.report.client.entity.ReportStatus;
+import com.antra.report.client.entity.*;
 import com.antra.report.client.exception.RequestNotFoundException;
 import com.antra.report.client.pojo.EmailType;
 import com.antra.report.client.pojo.FileType;
@@ -30,8 +27,11 @@ import org.springframework.web.client.RestTemplate;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -41,21 +41,21 @@ import java.util.stream.Collectors;
 public class ReportServiceImpl implements ReportService {
     private static final Logger log = LoggerFactory.getLogger(ReportServiceImpl.class);
 
-
-
+    @Autowired
+    ThreadPoolTaskExecutor es;
 
     private final ReportRequestRepo reportRequestRepo;
     private final SNSService snsService;
     private final AmazonS3 s3Client;
     private final EmailService emailService;
-    private final ReportCache reportCache;
+
 
     public ReportServiceImpl(ReportRequestRepo reportRequestRepo, SNSService snsService, AmazonS3 s3Client, EmailService emailService, ReportCache reportCache) {
         this.reportRequestRepo = reportRequestRepo;
         this.snsService = snsService;
         this.s3Client = s3Client;
         this.emailService = emailService;
-        this.reportCache = reportCache;
+
     }
 
     private ReportRequestEntity persistToLocal(ReportRequest request) {
@@ -87,31 +87,75 @@ public class ReportServiceImpl implements ReportService {
         return new ReportVO(reportRequestRepo.findById(request.getReqId()).orElseThrow());
     }
 
-//    //@Transactional
-    private void sendDirectRequests(ReportRequest request){
+private void sendDirectRequests(ReportRequest request){
+        RestTemplate rs = new RestTemplate();
+//        ExcelResponse excelResponse = new ExcelResponse();
+//        PDFResponse pdfResponse = new PDFResponse();
+            CompletableFuture<Void> futureExcelResponse =
+                CompletableFuture.supplyAsync(()->rs.postForEntity("http://localhost:8888/excel", request, ExcelResponse.class).getBody(), es)
+                        .thenAccept(this::updateLocal)
+                        .orTimeout(3, TimeUnit.MINUTES);
+        CompletableFuture<Void> futurePdfResponse =
+                CompletableFuture.supplyAsync(()->rs.postForEntity("http://localhost:9999/pdf", request, PDFResponse.class).getBody(), es)
+                        .thenAccept(this::updateLocal)
+                        .orTimeout(3, TimeUnit.MINUTES);
 
-        ExcelResponse excelResponse = new ExcelResponse();
-        PDFResponse pdfResponse = new PDFResponse();
 
-        try{
-            excelResponse = reportCache.generateExcel(request);
-        } catch (Exception e) {
-            log.error("Excel Generation Error (Sync) : e", e);
-            excelResponse.setReqId(request.getReqId());
-            excelResponse.setFailed(true);
-        } finally {
-            updateLocal(excelResponse);
-        }
-        try {
-            pdfResponse = reportCache.generatePdf(request);
-        } catch(Exception e){
-            log.error("PDF Generation Error (Sync) : e", e);
-            pdfResponse.setReqId(request.getReqId());
-            pdfResponse.setFailed(true);
-        } finally {
-            updateLocal(pdfResponse);
-        }
+//        CompletableFuture.allOf(futureExcelResponse,futurePdfResponse).thenAccept(result -> updateLocal(result));
+
+//
+//        CompletableFuture<ExcelResponse> futureExcelResponse =
+//                CompletableFuture.supplyAsync(()->rs.postForEntity("http://localhost:8888/excel", request, ExcelResponse.class).getBody(), es);
+//        CompletableFuture<PDFResponse> futurePdfResponse =
+//                CompletableFuture.supplyAsync(()->rs.postForEntity("http://localhost:9999/pdf", request, PDFResponse.class).getBody(), es);
+//        try{
+//            excelResponse = futureExcelResponse.get();
+//        } catch (Exception e) {
+//            log.error("Excel Generation Error (Sync) : e", e);
+//            excelResponse.setReqId(request.getReqId());
+//            excelResponse.setFailed(true);
+//        } finally {
+//            updateLocal(excelResponse);
+//        }
+//        try {
+//            pdfResponse = futurePdfResponse.get();
+//        } catch(Exception e){
+//            log.error("PDF Generation Error (Sync) : e", e);
+//            pdfResponse.setReqId(request.getReqId());
+//            pdfResponse.setFailed(true);
+//        } finally {
+//            updateLocal(pdfResponse);
+//        }
     }
+
+
+
+
+//    //@Transactional
+//    private void sendDirectRequests(ReportRequest request){
+//
+//        ExcelResponse excelResponse = new ExcelResponse();
+//        PDFResponse pdfResponse = new PDFResponse();
+//
+//        try{
+//            excelResponse = reportCache.generateExcel(request);
+//        } catch (Exception e) {
+//            log.error("Excel Generation Error (Sync) : e", e);
+//            excelResponse.setReqId(request.getReqId());
+//            excelResponse.setFailed(true);
+//        } finally {
+//            updateLocal(excelResponse);
+//        }
+//        try {
+//            pdfResponse = reportCache.generatePdf(request);
+//        } catch(Exception e){
+//            log.error("PDF Generation Error (Sync) : e", e);
+//            pdfResponse.setReqId(request.getReqId());
+//            pdfResponse.setFailed(true);
+//        } finally {
+//            updateLocal(pdfResponse);
+//        }
+//    }
 //    //@Transactional
 //    private void sendDirectRequests(ReportRequest request){
 //        RestTemplate rs = new RestTemplate();

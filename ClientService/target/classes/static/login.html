@@ -58,18 +58,22 @@
         }
         console.log("11111111");
         $.ajax({
-            url: "login/do_login",
+            url: "/login",
             type: "POST",
             data:JSON.stringify(input),
             dataType:"json",
             contentType:"application/json",
 
             success:function(data){
+                console.log(data);
+                if(data.data === 1){
 
-                if(data == 1){
+                    alert("waiting");
                     window.location.href="index.html";
+
                 }else{
                     alert("Username or Password is wrong");
+                    console.log("Username or Password is wrong");
                 }
             },
             error:function(){
