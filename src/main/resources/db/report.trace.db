@@ -1,3 +1,0 @@
-2021-03-10 02:47:44 jdbc[13]: exception
-org.h2.jdbc.JdbcSQLSyntaxErrorException: Syntax error in SQL statement "PASSWORD[*] MOBILE USER USER"; expected "PREPARE"; SQL statement:
-PASSWORD MOBILE USER USER [42001-200]
