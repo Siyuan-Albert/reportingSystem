@@ -1,8 +1,0 @@
-GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
-ClientService,com.antra.report.client.service,EmailServiceImpl,0,53,0,0,0,18,0,4,0,4
-ClientService,com.antra.report.client.service,SNSServiceImpl,12,9,0,0,4,3,2,1,2,1
-ClientService,com.antra.report.client.service,ReportServiceImpl,138,245,6,2,32,67,8,9,4,9
-ClientService,com.antra.report.client.service,Email,0,38,0,0,0,16,0,11,0,11
-ClientService,com.antra.report.client.service,UserServiceImpl,58,7,2,0,15,2,2,2,1,2
-ClientService,com.antra.report.client.controller,ReportController,168,10,6,0,31,4,10,2,7,2
-ClientService,com.antra.report.client.controller,LoginController,15,7,2,0,5,2,2,2,1,2
